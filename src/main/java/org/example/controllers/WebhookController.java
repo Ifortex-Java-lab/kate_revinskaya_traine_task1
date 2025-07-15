@@ -1,15 +1,13 @@
 package org.example.controllers;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
 import com.stripe.model.Subscription;
 import com.stripe.net.Webhook;
-import lombok.Getter;
-import lombok.Setter;
 import org.example.data.Customer;
+import org.example.dto.CheckoutSessionDto;
 import org.example.repository.CustomerRepository;
 import org.example.repository.SubscriptionRepository;
 import org.slf4j.Logger;
@@ -25,31 +23,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class WebhookController {
 
     private static final Logger logger = LoggerFactory.getLogger(WebhookController.class);
-
-    public static class CustomerDetailsDto {
-        @JsonProperty("email")
-        private String email;
-
-        public String getEmail() { return email; }
-        public void setEmail(String email) { this.email = email; }
-    }
-
-    @Getter
-    @Setter
-    public static class CheckoutSessionDto {
-        @JsonProperty("subscription")
-        private String subscriptionId;
-
-        @JsonProperty("customer")
-        private String customerId;
-
-        @JsonProperty("customer_details")
-        private CustomerDetailsDto customerDetails;
-
-        @JsonProperty("id")
-        private String sessionId;
-    }
-
 
     private static final ObjectMapper objectMapper = createObjectMapper();
 
