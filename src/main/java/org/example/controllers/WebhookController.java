@@ -1,11 +1,14 @@
 package org.example.controllers;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
-import com.stripe.model.EventDataObjectDeserializer;
-import com.stripe.model.StripeObject;
-import com.stripe.model.checkout.Session;
+import com.stripe.model.Subscription;
 import com.stripe.net.Webhook;
+import lombok.Getter;
+import lombok.Setter;
 import org.example.data.Customer;
 import org.example.repository.CustomerRepository;
 import org.example.repository.SubscriptionRepository;
@@ -23,6 +26,39 @@ public class WebhookController {
 
     private static final Logger logger = LoggerFactory.getLogger(WebhookController.class);
 
+    public static class CustomerDetailsDto {
+        @JsonProperty("email")
+        private String email;
+
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+    }
+
+    @Getter
+    @Setter
+    public static class CheckoutSessionDto {
+        @JsonProperty("subscription")
+        private String subscriptionId;
+
+        @JsonProperty("customer")
+        private String customerId;
+
+        @JsonProperty("customer_details")
+        private CustomerDetailsDto customerDetails;
+
+        @JsonProperty("id")
+        private String sessionId;
+    }
+
+
+    private static final ObjectMapper objectMapper = createObjectMapper();
+
+    private static ObjectMapper createObjectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        return mapper;
+    }
+
     @Value("${stripe.webhook.secret}")
     private String webhookSecret;
 
@@ -37,58 +73,75 @@ public class WebhookController {
             @RequestBody String payload, @RequestHeader("Stripe-Signature") String sigHeader
     ) {
         if (sigHeader == null) {
+            logger.warn("Stripe-Signature header is null. Aborting.");
             return "";
         }
         Event event;
         try {
             event = Webhook.constructEvent(payload, sigHeader, webhookSecret);
+            logger.info(">>> SUCCESS: Signature verification successful! Event ID: {}", event.getId());
         } catch (SignatureVerificationException e) {
-            logger.error("Webhook signature verification failed.", e);
+            logger.error(">>> ERROR: Webhook signature verification failed!", e);
             return "";
         }
 
-        EventDataObjectDeserializer dataObjectDeserializer = event.getDataObjectDeserializer();
-        if (dataObjectDeserializer.getObject().isEmpty()) {
+        String dataObjectJson = event.getDataObjectDeserializer().getRawJson();
+        if (dataObjectJson == null || dataObjectJson.isEmpty() || "{}".equals(dataObjectJson)) {
+            logger.warn("Event data object JSON is empty or null. Aborting.");
             return "";
         }
-        StripeObject stripeObject = dataObjectDeserializer.getObject().get();
 
-        switch (event.getType()) {
-            case "checkout.session.completed":
-                Session session = (Session) stripeObject;
-                handleCheckoutSessionCompleted(session);
-                break;
-            case "customer.subscription.deleted":
-                com.stripe.model.Subscription subscription = (com.stripe.model.Subscription) stripeObject;
-                handleSubscriptionDeleted(subscription);
-                break;
-            default:
-                logger.info("Unhandled event type: {}", event.getType());
+        logger.info("Processing event type: {}", event.getType());
+        try {
+            switch (event.getType()) {
+                case "checkout.session.completed":
+                    logger.info("Entering case: 'checkout.session.completed'");
+                    CheckoutSessionDto sessionDto = objectMapper.readValue(dataObjectJson, CheckoutSessionDto.class);
+                    handleCheckoutSessionCompleted(sessionDto);
+                    break;
+
+                case "customer.subscription.deleted":
+                    logger.info("Entering case: 'customer.subscription.deleted'");
+                    Subscription subscription = objectMapper.readValue(dataObjectJson, Subscription.class);
+                    handleSubscriptionDeleted(subscription);
+                    break;
+
+                default:
+                    logger.warn("Unhandled event type: {}", event.getType());
+            }
+        } catch (Exception e) {
+            logger.error(">>> ERROR: Failed to deserialize or process event data object from JSON.", e);
+            return "";
         }
+
+        logger.info("--- [END] Webhook handling finished. ---");
         return "";
     }
 
-    private void handleCheckoutSessionCompleted(Session session) {
-        logger.info("Checkout session completed for session ID: {}", session.getId());
+    private void handleCheckoutSessionCompleted(CheckoutSessionDto sessionDto) {
 
-        String stripeSubscriptionId = session.getSubscription();
+        String stripeSubscriptionId = sessionDto.getSubscriptionId();
         if (stripeSubscriptionId == null) {
-            logger.warn("Received checkout.session.completed event for session {} but it has no subscription ID", session.getId());
+            logger.warn("--> [handleCheckoutSessionCompleted] Received checkout.session.completed event " +
+                    "for session {} but it has no subscription ID. Aborting.", sessionDto.getSessionId());
             return;
         }
 
-        String stripeCustomerId = session.getCustomer();
-        logger.info("Stripe Customer ID: {}", stripeCustomerId);
-        logger.info("Stripe Subscription ID: {}", stripeSubscriptionId);
+        String stripeCustomerId = sessionDto.getCustomerId();
+        logger.info("--> [handleCheckoutSessionCompleted] Stripe Customer ID: {}", stripeCustomerId);
+        logger.info("--> [handleCheckoutSessionCompleted] Stripe Subscription ID: {}", stripeSubscriptionId);
 
         Customer customer = customerRepository.findByStripeCustomerId(stripeCustomerId)
                 .orElseGet(() -> {
-                    String customerEmail = session.getCustomerDetails().getEmail();
-                    logger.info("Creating new customer with email: {}", customerEmail);
+                    String customerEmail = sessionDto.getCustomerDetails().getEmail();
+                    logger.info("--> [handleCheckoutSessionCompleted] Customer not found. " +
+                            "Creating new customer with email: {}", customerEmail);
                     Customer newCustomer = new Customer(customerEmail, stripeCustomerId);
                     return customerRepository.save(newCustomer);
                 });
 
+        logger.info("--> [handleCheckoutSessionCompleted] Customer object is ready (ID: {}). " +
+                "Creating subscription object...", customer.getId());
         org.example.data.Subscription newSubscription = new org.example.data.Subscription(
                 stripeSubscriptionId,
                 "active",
@@ -97,19 +150,21 @@ public class WebhookController {
 
         try {
             subscriptionRepository.save(newSubscription);
-            logger.info("Successfully saved new subscription {} for customer {}", stripeSubscriptionId, stripeCustomerId);
+            logger.info(">>> SUCCESS: [handleCheckoutSessionCompleted] Successfully saved new subscription {} " +
+                    "for customer {}", stripeSubscriptionId, stripeCustomerId);
         } catch (Exception e) {
-            logger.error("Failed to save subscription to database", e);
+            logger.error(">>> ERROR: [handleCheckoutSessionCompleted] Failed to save subscription to database", e);
         }
     }
 
-    private void handleSubscriptionDeleted(com.stripe.model.Subscription subscription) {
-        logger.info("Subscription {} deleted.", subscription.getId());
+    private void handleSubscriptionDeleted(Subscription subscription) {
+        logger.info("--> [handleSubscriptionDeleted] Started for subscription ID: {}.", subscription.getId());
         subscriptionRepository.findByStripeSubscriptionId(subscription.getId())
                 .ifPresent(sub -> {
                     sub.setStatus("canceled");
                     subscriptionRepository.save(sub);
-                    logger.info("Updated subscription {} status to 'canceled'", sub.getStripeSubscriptionId());
+                    logger.info("--> [handleSubscriptionDeleted] Updated subscription {} status to 'canceled'",
+                            sub.getStripeSubscriptionId());
                 });
     }
 }
