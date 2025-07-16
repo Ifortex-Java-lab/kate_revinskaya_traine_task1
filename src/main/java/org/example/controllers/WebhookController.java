@@ -5,10 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
 import com.stripe.net.Webhook;
-import org.example.data.Customer;
+import org.example.data.User;
 import org.example.dto.CheckoutSessionDto;
 import org.example.dto.SubscriptionDto;
-import org.example.repository.CustomerRepository;
+import org.example.repository.UserRepository;
 import org.example.repository.SubscriptionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +36,7 @@ public class WebhookController {
     private String webhookSecret;
 
     @Autowired
-    private CustomerRepository customerRepository;
+    private UserRepository userRepository;
 
     @Autowired
     private SubscriptionRepository subscriptionRepository;
@@ -106,13 +106,13 @@ public class WebhookController {
         logger.info("--> [handleCheckoutSessionCompleted] Stripe Customer ID: {}, " +
                 "Stripe Subscription ID: {}", stripeCustomerId, stripeSubscriptionId);
 
-        Customer customer = customerRepository.findByStripeCustomerId(stripeCustomerId)
+        User customer = userRepository.findByStripeCustomerId(stripeCustomerId)
                 .orElseGet(() -> {
                     String customerEmail = sessionDto.getCustomerDetails().getEmail();
                     logger.info("--> [handleCheckoutSessionCompleted] Customer not found. " +
                             "Creating new customer with email: {}", customerEmail);
-                    Customer newCustomer = new Customer(customerEmail, stripeCustomerId);
-                    return customerRepository.save(newCustomer);
+                    User newUser = new User(customerEmail, stripeCustomerId);
+                    return userRepository.save(newUser);
                 });
 
         logger.info("--> [handleCheckoutSessionCompleted] Customer object is ready with ID: {}", customer.getId());

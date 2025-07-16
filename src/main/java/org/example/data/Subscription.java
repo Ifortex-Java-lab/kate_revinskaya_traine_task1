@@ -18,15 +18,15 @@ public class Subscription {
     private String status;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "customer_id")
-    private Customer customer;
+    @JoinColumn(name = "user_id")
+    private User user;
 
     public Subscription() {
     }
 
-    public Subscription(String stripeSubscriptionId, String status, Customer customer) {
+    public Subscription(String stripeSubscriptionId, String status, User user) {
         this.stripeSubscriptionId = stripeSubscriptionId;
         this.status = status;
-        this.customer = customer;
+        this.user = user;
     }
 }
