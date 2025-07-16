@@ -3,6 +3,7 @@
 <h1>Select a subscription plan</h1>
 <button id="checkout-button-pro"> Pro subscription (20$/month)</button>
 <button id="checkout-button-lite">Lite subscription (5$/month)</button>
+<button id="manage-subscription-button">Manage subscription</button>
 
 <script type="text/javascript">
     const checkoutButtonPro = document.getElementById('checkout-button-pro');
@@ -33,6 +34,19 @@
 
         const session = await response.json();
         window.location.href = session.url;
+    });
+
+    const manageSubscriptionButton = document.getElementById('manage-subscription-button');
+
+    manageSubscriptionButton.addEventListener('click', async () => {
+        const response = await fetch('/create-customer-portal-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+
+        const portalSession = await response.json();
+
+        window.location.href = portalSession.url;
     });
 </script>
 </body>

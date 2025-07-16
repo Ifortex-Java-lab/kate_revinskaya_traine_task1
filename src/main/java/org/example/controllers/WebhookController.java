@@ -4,10 +4,10 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
-import com.stripe.model.Subscription;
 import com.stripe.net.Webhook;
 import org.example.data.Customer;
 import org.example.dto.CheckoutSessionDto;
+import org.example.dto.SubscriptionDto;
 import org.example.repository.CustomerRepository;
 import org.example.repository.SubscriptionRepository;
 import org.slf4j.Logger;
@@ -59,12 +59,8 @@ public class WebhookController {
         }
 
         String dataObjectJson = event.getDataObjectDeserializer().getRawJson();
-        if (dataObjectJson == null || dataObjectJson.isEmpty() || "{}".equals(dataObjectJson)) {
-            logger.warn("Event data object JSON is empty or null. Aborting.");
-            return "";
-        }
+        logger.error(">>> Event data object raw JSON: {}", dataObjectJson);
 
-        logger.info("Processing event type: {}", event.getType());
         try {
             switch (event.getType()) {
                 case "checkout.session.completed":
@@ -75,8 +71,14 @@ public class WebhookController {
 
                 case "customer.subscription.deleted":
                     logger.info("Entering case: 'customer.subscription.deleted'");
-                    Subscription subscription = objectMapper.readValue(dataObjectJson, Subscription.class);
+                    SubscriptionDto subscription = objectMapper.readValue(dataObjectJson, SubscriptionDto.class);
                     handleSubscriptionDeleted(subscription);
+                    break;
+
+                case "customer.subscription.updated":
+                    logger.info("Entering case: 'customer.subscription.updated'");
+                    SubscriptionDto updatedSubscription = objectMapper.readValue(dataObjectJson, SubscriptionDto.class);
+                    handleSubscriptionUpdated(updatedSubscription);
                     break;
 
                 default:
@@ -101,8 +103,8 @@ public class WebhookController {
         }
 
         String stripeCustomerId = sessionDto.getCustomerId();
-        logger.info("--> [handleCheckoutSessionCompleted] Stripe Customer ID: {}", stripeCustomerId);
-        logger.info("--> [handleCheckoutSessionCompleted] Stripe Subscription ID: {}", stripeSubscriptionId);
+        logger.info("--> [handleCheckoutSessionCompleted] Stripe Customer ID: {}, " +
+                "Stripe Subscription ID: {}", stripeCustomerId, stripeSubscriptionId);
 
         Customer customer = customerRepository.findByStripeCustomerId(stripeCustomerId)
                 .orElseGet(() -> {
@@ -113,8 +115,7 @@ public class WebhookController {
                     return customerRepository.save(newCustomer);
                 });
 
-        logger.info("--> [handleCheckoutSessionCompleted] Customer object is ready (ID: {}). " +
-                "Creating subscription object...", customer.getId());
+        logger.info("--> [handleCheckoutSessionCompleted] Customer object is ready with ID: {}", customer.getId());
         org.example.data.Subscription newSubscription = new org.example.data.Subscription(
                 stripeSubscriptionId,
                 "active",
@@ -130,7 +131,7 @@ public class WebhookController {
         }
     }
 
-    private void handleSubscriptionDeleted(Subscription subscription) {
+    private void handleSubscriptionDeleted(SubscriptionDto subscription) {
         logger.info("--> [handleSubscriptionDeleted] Started for subscription ID: {}.", subscription.getId());
         subscriptionRepository.findByStripeSubscriptionId(subscription.getId())
                 .ifPresent(sub -> {
@@ -138,6 +139,24 @@ public class WebhookController {
                     subscriptionRepository.save(sub);
                     logger.info("--> [handleSubscriptionDeleted] Updated subscription {} status to 'canceled'",
                             sub.getStripeSubscriptionId());
+                });
+    }
+
+    private void handleSubscriptionUpdated(SubscriptionDto subscription) {
+        logger.info("--> [handleSubscriptionUpdated] Started for subscription ID: {}.", subscription.getId());
+        subscriptionRepository.findByStripeSubscriptionId(subscription.getId())
+                .ifPresent(sub -> {
+                    String newStatus = subscription.getStatus();
+
+                    if (subscription.isCancelAtPeriodEnd()) {
+                        newStatus = "pending_cancellation";
+                        logger.info("--> Subscription {} is scheduled for cancellation.", subscription.getId());
+                    }
+
+                    sub.setStatus(newStatus);
+                    subscriptionRepository.save(sub);
+                    logger.info("--> [handleSubscriptionUpdated] Updated subscription {} status to '{}'",
+                            sub.getStripeSubscriptionId(), newStatus);
                 });
     }
 }
