@@ -18,7 +18,6 @@ public class GeneralControllerAdvice {
                 "error", "Conflict",
                 "message", ex.getMessage()
         );
-
         return new ResponseEntity<>(body, HttpStatus.CONFLICT);
     }
 
@@ -29,7 +28,6 @@ public class GeneralControllerAdvice {
                 "error", "Not found",
                 "message", ex.getMessage()
         );
-
         return new ResponseEntity<>(body, HttpStatus.NOT_FOUND);
     }
 }

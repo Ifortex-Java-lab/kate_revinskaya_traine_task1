@@ -1,6 +1,8 @@
 package org.example.controllers;
 
 import org.example.services.UserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,14 +16,11 @@ public class RegistrationLoginController {
     @Autowired
     private UserService userService;
 
+    private static final Logger logger = LoggerFactory.getLogger(RegistrationLoginController.class);
+
     @GetMapping("/register")
     public String showRegistrationForm() {
         return "register";
-    }
-
-    @GetMapping("/login")
-    public String showLoginForm() {
-        return "login";
     }
 
     @PostMapping("/register")
@@ -30,14 +29,19 @@ public class RegistrationLoginController {
             @RequestParam String password,
             RedirectAttributes redirectAttributes
     ) {
-        try {
-            userService.registerNewUser(email, password);
+        logger.info("client with email {} registers", email);
+        if (userService.registerNewUser(email, password)) {
             redirectAttributes.addFlashAttribute("successMessage",
                     "Registration was success!");
             return "redirect:/login";
-        } catch (IllegalStateException e) {
-            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
-            return "redirect:/register";
         }
+        redirectAttributes.addFlashAttribute("errorMessage",
+                "User with email" + email + "already exists");
+        return "redirect:/register";
+    }
+
+    @GetMapping("/login")
+    public String showLoginForm() {
+        return "login";
     }
 }
