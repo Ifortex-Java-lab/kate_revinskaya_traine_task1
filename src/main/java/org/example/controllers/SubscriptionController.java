@@ -1,14 +1,11 @@
 package org.example.controllers;
 
-import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.billingportal.Session;
-import com.stripe.param.billingportal.SessionCreateParams;
 import org.example.data.User;
-import org.example.services.StripeSupportService;
+import org.example.services.CreateStripeSessionsService;
 import org.example.services.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,7 +20,7 @@ public class SubscriptionController {
     @Autowired
     private UserService userService;
     @Autowired
-    private StripeSupportService stripeSupportService;
+    private CreateStripeSessionsService createStripeSessionsService;
 
     @PostMapping("/create-checkout-session")
     public Map<String, String> createCheckoutSession(
@@ -33,8 +30,8 @@ public class SubscriptionController {
         String priceId = payload.get("priceId");
         String userEmail = authentication.getName();
 
-        com.stripe.model.checkout.Session session = stripeSupportService
-                .createCheckoutStripeSessionBy(userEmail, priceId);
+        com.stripe.model.checkout.Session session = createStripeSessionsService
+                .createCheckoutStripeSession(userEmail, priceId);
 
         Map<String, String> response = new HashMap<>();
         response.put("url", session.getUrl());
@@ -45,12 +42,10 @@ public class SubscriptionController {
     public Map<String, String> createCustomerPortalSession(Authentication authentication) throws StripeException {
         User currentUser = userService.findUserByEmail(authentication.getName());
 
-        Session portalSession = stripeSupportService.createPortalStripeSessionBy(currentUser);
+        Session portalSession = createStripeSessionsService.createCustomerPortalSession(currentUser);
 
         Map<String, String> response = new HashMap<>();
         response.put("url", portalSession.getUrl());
         return response;
     }
-
-
 }

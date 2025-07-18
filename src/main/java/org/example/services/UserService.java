@@ -2,6 +2,7 @@ package org.example.services;
 
 import lombok.RequiredArgsConstructor;
 import org.example.data.User;
+import org.example.exceptions.UserNotFoundException;
 import org.example.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -15,7 +16,7 @@ public class UserService {
 
     public User registerNewUser(String email, String password) {
         if (userRepository.findByEmail(email).isPresent()) {
-            throw new IllegalStateException("User with this email already exists");
+            throw new IllegalStateException("User with email" + email + "already exists");
         }
 
         User newUser = new User();
@@ -26,16 +27,13 @@ public class UserService {
         return userRepository.save(newUser);
     }
 
-    public boolean hasStripeCustomer(String email) {
-        User currentUser = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Authenticated user " + email +
-                        " not found in database. Data integrity issue."));
-        return currentUser.getStripeCustomerId() != null;
-    }
-
     public User findUserByEmail(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Authenticated user " + email +
-                        " not found in database. Data integrity issue."));
+                .orElseThrow(() -> new UserNotFoundException("Authenticated user " + email + "not found in database"));
+    }
+
+    public boolean hasStripeCustomer(String email) {
+        User currentUser = findUserByEmail(email);
+        return currentUser.getStripeCustomerId() != null;
     }
 }

@@ -6,13 +6,14 @@ import com.stripe.model.Customer;
 import com.stripe.param.CustomerCreateParams;
 import com.stripe.param.billingportal.SessionCreateParams;
 import org.example.data.User;
+import org.example.exceptions.StripeCustomerIdMissingException;
 import org.example.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
-public class StripeSupportService {
+public class CreateStripeSessionsService {
 
     @Value("${STRIPE_SECRET_KEY}")
     private String secretKey;
@@ -25,15 +26,17 @@ public class StripeSupportService {
     @Value("${subscription.manage.url.return}")
     private String returnUrl;
 
+    @Value("${stripe.webhook.secret}")
+    private String webhookSecret;
+
     @Autowired
     private UserRepository userRepository;
 
     @Autowired
     private UserService userService;
 
-    public com.stripe.model.checkout.Session createCheckoutStripeSessionBy(String userEmail, String priceId)
-            throws StripeException
-    {
+    public com.stripe.model.checkout.Session createCheckoutStripeSession(String userEmail, String priceId)
+            throws StripeException {
         Stripe.apiKey = secretKey;
         User currentUser = userService.findUserByEmail(userEmail);
         String stripeCustomerId = getOrCreateStripeCustomer(currentUser);
@@ -54,12 +57,11 @@ public class StripeSupportService {
         return com.stripe.model.checkout.Session.create(params);
     }
 
-    public com.stripe.model.billingportal.Session createPortalStripeSessionBy(User currentUser)
-            throws StripeException
-    {
+    public com.stripe.model.billingportal.Session createCustomerPortalSession(User currentUser)
+            throws StripeException {
         String stripeCustomerId = currentUser.getStripeCustomerId();
         if (stripeCustomerId == null) {
-            throw new IllegalStateException("Cannot create customer portal for a user who has never initiated a payment.");
+            throw new StripeCustomerIdMissingException("Cannot create customer portal for a user without stripeCustomerId.");
         }
 
         Stripe.apiKey = secretKey;
