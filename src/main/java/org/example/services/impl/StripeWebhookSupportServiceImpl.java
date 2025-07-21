@@ -54,7 +54,7 @@ public class StripeWebhookSupportServiceImpl implements StripeWebhookSupportServ
         }
 
         String dataObjectJson = event.getDataObjectDeserializer().getRawJson();
-        logger.info(">>> Event data object raw JSON: {}", dataObjectJson);
+        logger.debug(">>> Event data object raw JSON: {}", dataObjectJson);
 
         try {
             switch (event.getType()) {
