@@ -30,7 +30,7 @@ public class RegistrationLoginController {
             RedirectAttributes redirectAttributes
     ) {
         logger.info("client with email {} registers", email);
-        if (userService.registerNewUser(email, password)) {
+        if (userService.registerUser(email, password)) {
             redirectAttributes.addFlashAttribute("successMessage",
                     "Registration was success!");
             return "redirect:/login";

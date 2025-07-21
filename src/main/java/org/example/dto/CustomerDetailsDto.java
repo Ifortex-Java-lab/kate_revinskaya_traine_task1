@@ -7,6 +7,5 @@ import lombok.Setter;
 @Getter
 @Setter
 public class CustomerDetailsDto {
-    @JsonProperty("email")
     private String email;
 }

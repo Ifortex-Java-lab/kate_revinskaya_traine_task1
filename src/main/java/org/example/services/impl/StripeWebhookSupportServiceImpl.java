@@ -82,7 +82,7 @@ public class StripeWebhookSupportServiceImpl implements StripeWebhookSupportServ
                     break;
 
                 default:
-                    logger.warn("Unhandled event type: {}", event.getType());
+                    logger.error("Unhandled event type: {}", event.getType());
             }
         } catch (Exception e) {
             logger.error(">>> ERROR: Failed to deserialize or process event data object from JSON.", e);
@@ -114,11 +114,8 @@ public class StripeWebhookSupportServiceImpl implements StripeWebhookSupportServ
                     "is already exists in db", stripeSubscriptionId);
             return;
         }
-        org.example.data.Subscription newSubscription = new org.example.data.Subscription();
-        newSubscription.setStatus("active");
-        newSubscription.setStripeSubscriptionId(stripeSubscriptionId);
-        newSubscription.setUser(customer);
-
+        org.example.data.Subscription newSubscription = new org.example.data.Subscription(
+                stripeSubscriptionId, "active", customer);
         try {
             subscriptionRepository.save(newSubscription);
             logger.info("--> [handleCheckoutSessionCompleted] Successfully saved new subscription {} " +

@@ -23,4 +23,10 @@ public class Subscription {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
+
+    public Subscription(String stripeSubscriptionId, String status, User user) {
+        this.stripeSubscriptionId = stripeSubscriptionId;
+        this.status = status;
+        this.user = user;
+    }
 }

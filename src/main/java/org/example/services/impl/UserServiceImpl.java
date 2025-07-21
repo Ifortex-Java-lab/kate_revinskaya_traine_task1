@@ -19,14 +19,11 @@ public class UserServiceImpl implements UserService {
     private static final Logger logger = LoggerFactory.getLogger(UserServiceImpl.class);
 
     @Override
-    public boolean registerNewUser(String email, String password) {
+    public boolean registerUser(String email, String password) {
         if (userRepository.findByEmail(email).isPresent()) {
             return false;
         }
-        User newUser = new User();
-        newUser.setEmail(email);
-        newUser.setPassword(passwordEncoder.encode(password));
-        newUser.setRole("ROLE_USER");
+        User newUser = new User(email, passwordEncoder.encode(password), "ROLE_USER");
         userRepository.save(newUser);
         logger.info("user with email {} was saved in db", email);
         return true;
